@@ -1,0 +1,79 @@
+Parameters:
+  EnvironmentName:
+    Description: MyTestEnvironment
+    Type: String
+    Default: MyTestEnvironment
+
+  VpcId:
+    Description: The VPC to create this ReplicationGroup under
+    Type: 'AWS::EC2::VPC::Id'
+
+  DBUser:
+    NoEcho: 'true'
+    Description: The database admin account username
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric
+      characters.
+
+  DBPassword:
+    NoEcho: 'true'
+    Description: The database admin account password
+    Type: String
+    MinLength: '1'
+    MaxLength: '41'
+    AllowedPattern: '[a-zA-Z0-9]+'
+    ConstraintDescription: must contain only alphanumeric characters.
+
+  DBSubnetAZ1:
+    Description: >-
+      Subnets you would like the DBInstance for RDS 5.7 to be created in.
+    Type: 'AWS::EC2::Subnet::Id'
+
+  DBSubnetAZ2:
+    Description: >-
+      Subnets you would like the DBInstance for RDS 5.7 to be created in. 
+    Type: 'AWS::EC2::Subnet::Id'
+# ======================================================
+# Database creation for RDS MySQL v5.7
+# ======================================================
+Resources:
+  DataSourceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open database for access
+      VpcId: !Ref VpcId
+  DSSGIngressRule:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      FromPort: "3306"
+      ToPort: "3306"
+      GroupId: !Ref DataSourceSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref DataSourceSecurityGroup
+  DataSourceSubtNetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Created by CF
+      SubnetIds:
+        - !Ref DBSubnetAZ1
+        - !Ref DBSubnetAZ2
+  DataSource:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: '5'
+      DBInstanceClass: db.t2.micro
+      DBName: mytestdb
+      DBSubnetGroupName: !Ref DataSourceSubtNetGroup
+      Engine: MySQL
+      EngineVersion: 5.7.30
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      PubliclyAccessible: false
+      MultiAZ: true
+      VPCSecurityGroups:
+        - !Ref DataSourceSecurityGroup
+    DeletionPolicy: Snapshot
+#=====================================================

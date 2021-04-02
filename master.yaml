@@ -1,0 +1,45 @@
+Description: >
+  This is a master stack template deploys vpc child stack which will in turn deploy the following. 
+  - VPC
+  - 2 Public Subnets in 2 Availability Zones
+  - 2 Private Subnets in 2 Availability Zones
+  - Internet Gateway
+  - Route table for Public Subnets, Routes and Route table association
+  - Route table for Private Subnets, Routes and Route table association
+  - NAT Gateways in 2 Public Subnets (one in each AZ)
+  - Output of VPC and all the Subnet 
+  Last Modified: 06-Feb-2021
+  Author: Praveen Kumar PS <praveen_ps@yahoo.com>
+Resources:
+  VPC:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://mycfstack.s3.amazonaws.com/vpc.yaml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VpcCIDR: 10.0.0.0/16
+        PublicSubnet1CIDR: 10.0.1.0/24
+        PublicSubnet2CIDR: 10.0.2.0/24
+        PrivateSubnet1CIDR: 10.0.3.0/24
+        PrivateSubnet2CIDR: 10.0.4.0/24
+  SecurityGroups:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://mycfstack.s3.amazonaws.com/securitygroups.yaml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VPC: !GetAtt VPC.Outputs.VPC
+  ALB:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: https://mycfstack.s3.amazonaws.com/servers.yaml
+      Parameters:
+        EnvironmentName: !Ref AWS::StackName
+        VPC: !GetAtt VPC.Outputs.VPC
+        Subnets: !GetAtt VPC.Outputs.PublicSubnets
+        LBSecurityGroup: !GetAtt SecurityGroups.Outputs.LoadBalancerSecurityGroup
+        Subnets1: !GetAtt VPC.Outputs.PrivateSubnets
+        WSSecurityGroup: !GetAtt SecurityGroups.Outputs.WSSecurityGroup
+#==================================================================================================
+# END OF MASTER SCRIPT.
+#================================================================================================== 

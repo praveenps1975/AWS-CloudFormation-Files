@@ -1,0 +1,130 @@
+Description: >
+  This template deploys an Application Load Balancer that exposes our various ECS services.
+  We create them in a seperate nested template, so it can be referenced by all of the other nested templates.
+Parameters:
+  EnvironmentName:
+    Description: Our environment name that will be prefixed to resource names
+    Type: String
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where the Application Load Balancer should be deployed to
+
+  Subnets:
+    Description: Subnets where the Application Load Balancer should be deployed to
+    Type: List<AWS::EC2::Subnet::Id>
+
+  Subnets1:
+    Description: Subnets where the Application EC2 Servers should be deployed to
+    Type: List<AWS::EC2::Subnet::Id>
+
+  LBSecurityGroup:
+    Description: Security Group to be applied to the Application Load Balancer
+    Type: AWS::EC2::SecurityGroup::Id
+
+  WSSecurityGroup:
+    Description: Security Group to be applied to the WS Group
+    Type: AWS::EC2::SecurityGroup::Id
+
+  InstanceType:
+    Description: Instance type that we use
+    Type: String
+    Default: t2.small
+#============================================================================================================================
+# This section will define the Load Balancer, Listener Target Group, Launch Configuration, Autoscaling, Autoscaling Policies
+#============================================================================================================================ 
+Resources:
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Ref EnvironmentName
+      Subnets: !Ref Subnets
+      SecurityGroups:
+        - !Ref LBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Ref EnvironmentName
+
+  LoadBalancerListenerWS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WSTargetGroup
+
+  WSTargetGroup: 
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${EnvironmentName}-WSTarget
+      VpcId: !Ref VPC
+      Port: 80
+      Protocol: HTTP
+  # ==========================================================================
+  # WebServers Launch Configuration & Autoscaling Group creation with policies
+  # ==========================================================================
+  WSLaunchConfiguration:
+    Type: 'AWS::AutoScaling::LaunchConfiguration'
+    Properties:
+      ImageId: "ami-03c5cc3d1425c6d34"
+      InstanceMonitoring: true
+      InstanceType: !Ref InstanceType
+      SecurityGroups:
+      - !Ref WSSecurityGroup
+      KeyName: Test123
+      AssociatePublicIpAddress: false
+
+  WSAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: Webserver Autoscaling Group
+      Cooldown: 120
+      DesiredCapacity: 2
+      MaxSize: 4
+      MinSize: 2
+      LaunchConfigurationName: !Ref WSLaunchConfiguration
+      TargetGroupARNs:
+        - !Ref WSTargetGroup
+      Tags:
+        - 
+          Key: Name
+          Value: Weservers ASG
+          PropagateAtLaunch: 'true'
+      VPCZoneIdentifier: !Ref Subnets1
+
+  WSASGScalingUpPolicy: 
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties: 
+      AdjustmentType: "ChangeInCapacity"
+      PolicyType: "SimpleScaling"
+      Cooldown: "300"
+      AutoScalingGroupName: !Ref WSAutoScalingGroup
+      ScalingAdjustment: 1
+
+  WSASGScalingDownPolicy: 
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties: 
+      AdjustmentType: "ChangeInCapacity"
+      PolicyType: "SimpleScaling"
+      Cooldown: "300"
+      AutoScalingGroupName: !Ref WSAutoScalingGroup
+      ScalingAdjustment: -1
+ 
+Outputs:
+  LoadBalancer:
+    Description: A reference to the Application Load Balancer
+    Value: !Ref LoadBalancer
+
+  LoadBalancerUrl:
+    Description: The URL of the ALB
+    Value: !GetAtt LoadBalancer.DNSName
+
+  Listener:
+    Description: A reference to a port 80 listener
+    Value: !Ref LoadBalancerListenerWS
+
+  WSTargetGroup:
+    Description: Target Group of the Web Servers
+    Value: !Ref WSTargetGroup

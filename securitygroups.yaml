@@ -1,0 +1,73 @@
+Description: >
+  This template contains the security groups required by our entire stack.
+  We create them in a seperate nested template, so they can be referenced
+  by all of the other nested templates.
+Parameters:
+  EnvironmentName:
+    Description: Our environment name will be prefixed to resource names
+    Type: String
+
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC which the security groups should be deployed to
+
+  SSHLocation:
+    Description: The IP address range that can be used to SSH to the EC2 instances
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+
+Resources:
+  # This security group defines who/where is allowed to access the EC2 Servers directly.
+  # By default we're just allowing access from the load balancer.  If you want to SSH
+  # into the hosts, or expose non-load balanced services you can open their ports here.
+#======================================================================================
+# Security Group for Webservers
+#======================================================================================  
+  WSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Access to the EC2 Servres that run
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref SSHLocation
+        # Only allow inbound access to Web Servers from the ELB
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-WebServers
+#======================================================================================
+# Security Group for Load Balancer
+#======================================================================================  
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Access to the load balancer that sits in front of Web Servers
+      SecurityGroupIngress:
+        # Allow internet traffic to our Web servers in the following port
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-LoadBalancers
+
+Outputs:
+  WSSecurityGroup:
+    Description: A reference to the security group for Web Servers
+    Value: !Ref WSSecurityGroup
+
+  LoadBalancerSecurityGroup:
+    Description: A reference to the security group for load balancers
+    Value: !Ref LoadBalancerSecurityGroup
