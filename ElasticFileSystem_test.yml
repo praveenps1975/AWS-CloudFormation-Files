@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: This cloudformation will create encryped Elastic File System.
+Parameters:
+  VPC:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC where the EFS should be deployed to  
+  SystemName:
+    Type: String
+    Description: System for which this cloudformation is created.
+    Default: EFSSystem
+  EnvironmentName:
+    Type: String
+    Description: Environment for which this cloudformation is getting created
+    Default: MyQAEnvironment
+  RegionName:
+    Type: String
+    Description: Region Name in which resources are to be created.
+    Default: ap-southeast-1
+  # Subnets1:
+  #   Description: Subnets where the EFS should be deployed to
+  #   Type: List<AWS::EC2::Subnet::Id>
+  EC2InstanceLinkedEFSFileSystemTagName:
+    Type: String
+    Description: Tag name of Elastic File System.
+    Default: elastic-file-system
+Resources:
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: EFS Security Group
+      SecurityGroupIngress:
+        # Allow access from anywhere
+        - CidrIp: 0.0.0.0/0
+          IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvironmentName}-EFS
+  EFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      #FileSystemId: i-0eb998603d435b174
+      BackupPolicy:
+        Status: ENABLED
+      PerformanceMode: maxIO
+      Encrypted: true
+      LifecyclePolicies:
+        - TransitionToIA: AFTER_30_DAYS      
+      FileSystemTags:
+      - Key: Name
+        Value: !Sub ${EnvironmentName}-EFS
+  EFSMountTargetAZ1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: EFSFileSystem
+      SubnetId: subnet-fab854b2
+      SecurityGroups:
+      - Ref: EFSSecurityGroup
+  EFSMountTargetAZ2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId:
+        Ref: EFSFileSystem
+      SubnetId: subnet-01d12d67
+      SecurityGroups:
+      - Ref: EFSSecurityGroup
+Outputs:
+  ElasticFileSystem:
+    Description: Elastic file system.
+    Value:
+      Ref: EFSFileSystem
+  EFSMountTargetAZ1Id:
+    Description: EFS mount target Id in availability zone 1.
+    Value:
+      Ref: EFSMountTargetAZ1
+  EFSMountTargetAZ2Id:
+    Description: EFS mount target Id in availability zone 2.
+    Value:
+      Ref: EFSMountTargetAZ2
+#=================================================================
